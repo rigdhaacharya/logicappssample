@@ -1,0 +1,295 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Compose": {
+                "inputs": "@variables('ChangedUsers')",
+                "runAfter": {
+                    "IterateResources": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Compose"
+            },
+            "GetUsersOfInterest": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azuretables']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/Tables/@{encodeURIComponent('UserMonitor')}/entities"
+                },
+                "runAfter": {},
+                "type": "ApiConnection"
+            },
+            "Initialize_variable": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "ChangedUsers",
+                            "type": "array"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "GetUsersOfInterest": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "IterateResources": {
+                "actions": {
+                    "IsFreeOrPaid": {
+                        "actions": {
+                            "MatchingElement": {
+                                "actions": {
+                                    "AddMatchingNodesToChangedResources": {
+                                        "inputs": {
+                                            "name": "ChangedUsers",
+                                            "value": "@items('MatchingElement')"
+                                        },
+                                        "runAfter": {},
+                                        "type": "AppendToArrayVariable"
+                                    }
+                                },
+                                "foreach": "@body('Parse_JSON')",
+                                "runAfter": {
+                                    "Parse_JSON": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "Foreach"
+                            },
+                            "Parse_JSON": {
+                                "inputs": {
+                                    "content": "@body('Run_query_and_list_results')?['value']",
+                                    "schema": {
+                                        "items": {
+                                            "properties": {
+                                                "NewUserId": {
+                                                    "type": "string"
+                                                },
+                                                "TimeStamp": {
+                                                    "type": "string"
+                                                },
+                                                "UserId": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "UserId",
+                                                "NewUserId",
+                                                "TimeStamp"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Run_query_and_list_results": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "ParseJson"
+                            },
+                            "Run_query_and_list_results": {
+                                "inputs": {
+                                    "body": {
+                                        "cluster": "https://logicappdemo.eastus.kusto.windows.net",
+                                        "csl": "FreeUserChanges| where UserId==\"@{items('IterateResources')?['RowKey']}\"",
+                                        "db": "Changes"
+                                    },
+                                    "host": {
+                                        "connection": {
+                                            "name": "@parameters('$connections')['kusto']['connectionId']"
+                                        }
+                                    },
+                                    "method": "post",
+                                    "path": "/ListKustoResults/false"
+                                },
+                                "runAfter": {},
+                                "type": "ApiConnection"
+                            }
+                        },
+                        "else": {
+                            "actions": {
+                                "For_each_2": {
+                                    "actions": {
+                                        "Append_to_array_variable": {
+                                            "inputs": {
+                                                "name": "ChangedUsers",
+                                                "value": "@items('For_each_2')"
+                                            },
+                                            "runAfter": {},
+                                            "type": "AppendToArrayVariable"
+                                        }
+                                    },
+                                    "foreach": "@body('Parse_PaidUser')",
+                                    "runAfter": {
+                                        "Parse_PaidUser": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Foreach"
+                                },
+                                "Parse_PaidUser": {
+                                    "inputs": {
+                                        "content": "@body('Run_query_and_list_results_2')?['value']",
+                                        "schema": {
+                                            "items": {
+                                                "properties": {
+                                                    "NewUserId": {
+                                                        "type": "string"
+                                                    },
+                                                    "TimeStamp": {
+                                                        "type": "string"
+                                                    },
+                                                    "UserId": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "UserId",
+                                                    "NewUserId",
+                                                    "TimeStamp"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "runAfter": {
+                                        "Run_query_and_list_results_2": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ParseJson"
+                                },
+                                "Run_query_and_list_results_2": {
+                                    "inputs": {
+                                        "body": {
+                                            "cluster": "https://logicappdemo.eastus.kusto.windows.net",
+                                            "csl": "PaidUserChanges| where UserId==\"@{items('IterateResources')?['RowKey']}\"",
+                                            "db": "Changes"
+                                        },
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['kusto']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "path": "/ListKustoResults/false"
+                                    },
+                                    "runAfter": {},
+                                    "type": "ApiConnection"
+                                }
+                            }
+                        },
+                        "expression": {
+                            "and": [
+                                {
+                                    "equals": [
+                                        "@items('IterateResources')?['PartitionKey']",
+                                        "free"
+                                    ]
+                                }
+                            ]
+                        },
+                        "runAfter": {},
+                        "type": "If"
+                    }
+                },
+                "foreach": "@body('GetUsersOfInterest')?['value']",
+                "runAfter": {
+                    "Initialize_variable": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "JustPrint": {
+                "inputs": {
+                    "body": "@variables('ChangedUsers')",
+                    "function": {
+                        "id": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/resourceGroups/logicapp/providers/Microsoft.Web/sites/LogicAppSampleFunction/functions/JustPrint"
+                    }
+                },
+                "runAfter": {
+                    "IterateResources": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Function"
+            },
+            "Send_approval_email": {
+                "inputs": {
+                    "body": {
+                        "Message": {
+                            "Body": "@{outputs('Compose')}",
+                            "HideHTMLMessage": false,
+                            "Importance": "Normal",
+                            "Options": "Approve, Reject",
+                            "Subject": "Approval Request for user name change",
+                            "To": "rigdha_acharya@outlook.com"
+                        },
+                        "NotificationUrl": "@{listCallbackUrl()}"
+                    },
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['outlook']['connectionId']"
+                        }
+                    },
+                    "path": "/approvalmail/$subscriptions"
+                },
+                "runAfter": {
+                    "Compose": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnectionWebhook"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "Recurrence": {
+                "recurrence": {
+                    "frequency": "Minute",
+                    "interval": 15
+                },
+                "type": "Recurrence"
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "value": {
+                "azuretables": {
+                    "connectionId": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/resourceGroups/logicapp/providers/Microsoft.Web/connections/azuretables",
+                    "connectionName": "azuretables",
+                    "id": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/providers/Microsoft.Web/locations/eastus2/managedApis/azuretables"
+                },
+                "kusto": {
+                    "connectionId": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/resourceGroups/logicapp/providers/Microsoft.Web/connections/kusto",
+                    "connectionName": "kusto",
+                    "id": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/providers/Microsoft.Web/locations/eastus2/managedApis/kusto"
+                },
+                "outlook": {
+                    "connectionId": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/resourceGroups/logicapp/providers/Microsoft.Web/connections/outlook",
+                    "connectionName": "outlook",
+                    "id": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/providers/Microsoft.Web/locations/eastus2/managedApis/outlook"
+                }
+            }
+        }
+    }
+}

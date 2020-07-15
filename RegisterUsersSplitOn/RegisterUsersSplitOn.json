@@ -1,0 +1,80 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Insert_or_Merge_Entity_2": {
+                "inputs": {
+                    "body": "@triggerBody()",
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azuretables_1']['connectionId']"
+                        }
+                    },
+                    "method": "patch",
+                    "path": "/Tables/@{encodeURIComponent('UserMonitor')}/entities(PartitionKey='@{encodeURIComponent(triggerBody()?['billingTier'])}',RowKey='@{encodeURIComponent(triggerBody()?['userName'])}')"
+                },
+                "runAfter": {},
+                "type": "ApiConnection"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "manual": {
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "users": {
+                                "items": {
+                                    "properties": {
+                                        "billingTier": {
+                                            "type": "string"
+                                        },
+                                        "firstName": {
+                                            "type": "string"
+                                        },
+                                        "lastName": {
+                                            "type": "string"
+                                        },
+                                        "userName": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "userName",
+                                        "firstName",
+                                        "lastName",
+                                        "billingTier"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "kind": "Http",
+                "splitOn": "@triggerBody()?['users']",
+                "type": "Request"
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "value": {
+                "azuretables_1": {
+                    "connectionId": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/resourceGroups/logicapp/providers/Microsoft.Web/connections/azuretables-1",
+                    "connectionName": "azuretables-1",
+                    "id": "/subscriptions/78890d2c-c6b2-46a6-a796-c277e1ad66d0/providers/Microsoft.Web/locations/eastus2/managedApis/azuretables"
+                }
+            }
+        }
+    }
+}
